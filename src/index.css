@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.leaflet-container {
+  height: 300px; /* o el tamaño que quieras */
+  width: 100%;
+  border-radius: 0.5rem;
+}

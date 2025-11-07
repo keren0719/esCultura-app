@@ -1,30 +1,87 @@
-import { useState } from "react";
+import { useState,useEffect  } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 function Register() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("participante"); // Solo participante u organizador
+  const [rol, setRol] = useState(""); // Solo participante u organizador
+  const [roles, setRoles] = useState([]); // Solo participante u organizador
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  const handleRegister = (e) => {
+  // Base URL configurable por .env
+  const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
+  // Ajusta la ruta del endpoint según tu backend (ej: /api/auth/register)
+  const REGISTER_ENDPOINT = `${API_BASE}/users/createUser`;
+
+  useEffect(() => {
+    const fetchRoles = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/roles/getAllRoles`);
+        if (!res.ok) throw new Error("Error al obtener roles");
+        const data = await res.json();
+        setRoles(data);
+        // Establecer primer rol por defecto
+        if (data.length > 0) setRol(data[0].Id);
+      } catch (err) 
+      {
+        console.error(err);
+        setError("No se pudieron cargar los roles");
+      }
+    };
+    fetchRoles();
+  }, [API_BASE]);
+
+const handleRegister = async (e) => {
     e.preventDefault();
+    setError(null);
 
-    const users = JSON.parse(localStorage.getItem("users")) || [];
-
-    // Validar email ya registrado
-    if (users.some(u => u.email === email)) {
-      alert("❌ Este correo ya está registrado");
+    // Validaciones básicas antes de llamar al backend
+    if (!name.trim() || !email.trim() || !password) {
+      setError("Por favor completa todos los campos.");
       return;
     }
 
-    // Guardar usuario (solo participante u organizador)
-    users.push({ name, email, password, role });
-    localStorage.setItem("users", JSON.stringify(users));
+    setLoading(true);
+    try {
+      const payload = { name, email, password, rol };
 
-    alert("✅ Registro exitoso. Ahora inicia sesión");
-    navigate("/"); // Redirigir al login
+      const res = await fetch(REGISTER_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      // Si el backend responde con JSON de error, intentar leerlo
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        // Mensaje esperado en data.message o data.errors
+        const msg =
+          data?.message ||
+          (data?.errors && Array.isArray(data.errors)
+            ? data.errors.join(", ")
+            : "Error en el registro");
+        alert(msg);
+        throw new Error(msg);
+      }
+
+      // Registro exitoso (backend puede devolver user, token, etc.)
+      // Mostrar mensaje y redireccionar al login
+      alert("✅ Registro exitoso. Ahora inicia sesión");
+      navigate("/"); // Redirigir al login
+    }
+     catch (err) 
+    {
+      const msg = err?.message || "No se pudo registrar. Intenta de nuevo.";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -80,11 +137,19 @@ function Register() {
           <div className="text-sm font-semibold text-gray-700">Tipo de usuario:</div>
           <select
             className="w-full p-2 border border-orange-300 rounded-lg outline-none bg-white"
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
+            value={rol}
+            onChange={(e) => setRol(e.target.value)}
+            disabled={roles.length === 0}
           >
-            <option value="participante">Participante</option>
-            <option value="organizador">Organizador</option>
+            {roles.length === 0 ? (
+                <option>Cargando roles...</option>
+              ) : (
+                roles.map((r) => (
+                  <option key={r.Id} value={r.Id}>
+                    {r.Nombre}
+                  </option>
+                ))
+              )}
           </select>
 
           <button className="w-full bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 transition duration-300 mt-2">
